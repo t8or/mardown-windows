@@ -7,10 +7,13 @@ import {
   ArrowSquareOut,
   ArrowUp,
   ArrowDown,
+  ArrowsHorizontal,
+  ArrowsInLineHorizontal,
   Clock,
   Copy,
   FileText,
   FolderOpen,
+  Gear,
   Hash,
   MagnifyingGlass,
   Moon,
@@ -20,6 +23,7 @@ import {
   TextT,
   X,
 } from "@phosphor-icons/react";
+import { useSettingsStore, type ContentWidth } from "@/features/settings/store";
 import {
   memo,
   useCallback,
@@ -561,11 +565,13 @@ function MarkdownContent({
   dark,
   filePath,
   onActiveId,
+  contentWidth,
 }: {
   body: string;
   dark: boolean;
   filePath: string | null;
   onActiveId: (id: string) => void;
+  contentWidth: ContentWidth;
 }) {
   const articleRef = useRef<HTMLDivElement>(null);
 
@@ -617,10 +623,13 @@ function MarkdownContent({
     [dark, filePath],
   );
 
+  const widthClass =
+    contentWidth === "full" ? "max-w-none px-16" : "max-w-[72ch] px-10";
+
   return (
     <div
       ref={articleRef}
-      className="max-w-[72ch] mx-auto px-10 py-12 content-fade-in"
+      className={`mx-auto py-12 content-fade-in ${widthClass}`}
     >
       <article
         className="
@@ -660,14 +669,29 @@ function MarkdownContent({
 export function HomePage() {
   const [rawContent, setRawContent] = useState<string | null>(null);
   const [filePath, setFilePath] = useState<string | null>(null);
-  const [dark, setDark] = useState(
+  const [systemDark, setSystemDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const darkOverride = useSettingsStore((s) => s.dark);
+  const setDarkOverride = useSettingsStore((s) => s.setDark);
+  const sidebarOpen = useSettingsStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useSettingsStore((s) => s.setSidebarOpen);
+  const contentWidth = useSettingsStore((s) => s.contentWidth);
+  const setContentWidth = useSettingsStore((s) => s.setContentWidth);
+  const dark = darkOverride ?? systemDark;
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeHeadingId, setActiveHeadingId] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+
+  /* Track system dark-mode changes when no explicit override */
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   /* Parse document: strip frontmatter, compute stats + headings */
   const { body, frontmatter, stats, headings } = useMemo(() => {
@@ -790,7 +814,7 @@ export function HomePage() {
       >
         <button
           type="button"
-          onClick={() => setSidebarOpen((o) => !o)}
+          onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/[0.06] transition-colors duration-150"
           title="Toggle sidebar"
         >
@@ -852,10 +876,29 @@ export function HomePage() {
 
           <TopbarBtn
             title={dark ? "Switch to light" : "Switch to dark"}
-            onClick={() => setDark((d) => !d)}
+            onClick={() => setDarkOverride(!dark)}
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </TopbarBtn>
+
+          <div className="relative">
+            <TopbarBtn
+              title="Settings"
+              onClick={() => setSettingsOpen((v) => !v)}
+              active={settingsOpen}
+            >
+              <Gear size={15} />
+            </TopbarBtn>
+            {settingsOpen && (
+              <SettingsMenu
+                contentWidth={contentWidth}
+                onContentWidth={setContentWidth}
+                darkOverride={darkOverride}
+                onDarkOverride={setDarkOverride}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
+          </div>
         </div>
       </header>
 
@@ -893,11 +936,124 @@ export function HomePage() {
               dark={dark}
               filePath={filePath}
               onActiveId={setActiveHeadingId}
+              contentWidth={contentWidth}
             />
           )}
         </main>
       </div>
     </div>
+  );
+}
+
+/* ─── SettingsMenu ────────────────────────────────────────────────── */
+
+function SettingsMenu({
+  contentWidth,
+  onContentWidth,
+  darkOverride,
+  onDarkOverride,
+  onClose,
+}: {
+  contentWidth: ContentWidth;
+  onContentWidth: (w: ContentWidth) => void;
+  darkOverride: boolean | null;
+  onDarkOverride: (d: boolean | null) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    setTimeout(() => window.addEventListener("mousedown", handler), 0);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousedown", handler);
+      window.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl bg-white/97 dark:bg-[#252525]/97 border border-black/[0.08] dark:border-white/[0.10] shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-2"
+      style={{ backdropFilter: "blur(12px)" }}
+    >
+      <div className="px-2 pt-1 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
+          Content width
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-1 px-1 pb-2">
+        <SettingsToggle
+          icon={<ArrowsInLineHorizontal size={13} />}
+          label="Comfortable"
+          active={contentWidth === "comfortable"}
+          onClick={() => onContentWidth("comfortable")}
+        />
+        <SettingsToggle
+          icon={<ArrowsHorizontal size={13} />}
+          label="Full width"
+          active={contentWidth === "full"}
+          onClick={() => onContentWidth("full")}
+        />
+      </div>
+      <div className="h-px bg-stone-100 dark:bg-white/[0.05] my-1" />
+      <div className="px-2 pt-1 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
+          Theme
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+        <SettingsToggle
+          label="System"
+          active={darkOverride === null}
+          onClick={() => onDarkOverride(null)}
+        />
+        <SettingsToggle
+          icon={<Sun size={13} />}
+          label="Light"
+          active={darkOverride === false}
+          onClick={() => onDarkOverride(false)}
+        />
+        <SettingsToggle
+          icon={<Moon size={13} />}
+          label="Dark"
+          active={darkOverride === true}
+          onClick={() => onDarkOverride(true)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SettingsToggle({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon?: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[12px] transition-colors duration-100 ${
+        active
+          ? "bg-stone-100 dark:bg-white/[0.08] text-stone-800 dark:text-stone-100 font-medium"
+          : "text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.04]"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

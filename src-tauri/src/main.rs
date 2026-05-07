@@ -79,6 +79,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![set_doc_dir, read_md_file, take_pending_open])
         .register_uri_scheme_protocol("md-asset", |ctx, request| {
             let app = ctx.app_handle();
