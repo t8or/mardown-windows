@@ -23,6 +23,8 @@ import {
 import { useSettingsStore, type ContentWidth } from "@/features/settings/store";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import type { Frontmatter, Heading, Stats } from "@/features/sidebar/OutlinePanel";
+import { Tabs } from "@/features/reader/Tabs";
+import { useReaderStore } from "@/features/reader/store";
 import {
   memo,
   useCallback,
@@ -449,8 +451,18 @@ function MarkdownContent({
 /* ─── HomePage ────────────────────────────────────────────────────── */
 
 export function HomePage() {
-  const [rawContent, setRawContent] = useState<string | null>(null);
-  const [filePath, setFilePath] = useState<string | null>(null);
+  const files = useReaderStore((s) => s.files);
+  const activeIndex = useReaderStore((s) => s.activeIndex);
+  const viewMode = useReaderStore((s) => s.viewMode);
+  const pair = useReaderStore((s) => s.pair);
+  const openOrFocus = useReaderStore((s) => s.openOrFocus);
+  const startDiff = useReaderStore((s) => s.startDiff);
+  const startMerge = useReaderStore((s) => s.startMerge);
+
+  const activeFile = activeIndex >= 0 ? files[activeIndex] : null;
+  const filePath = activeFile?.path ?? null;
+  const rawContent = activeFile?.content ?? null;
+
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -491,22 +503,56 @@ export function HomePage() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  /* Open file via dialog */
-  const openMdFile = useCallback(async (path: string) => {
-    try {
-      setError(null);
-      const text = await invoke<string>("read_md_file", { path });
-      setFilePath(path);
-      setRawContent(text);
-      setActiveHeadingId("");
-      setSearchOpen(false);
-      // Tell Rust the document directory so md-asset:// can resolve relative images
-      const dir = path.replace(/[\\/][^\\/]+$/, "");
-      invoke("set_doc_dir", { dir }).catch(() => null);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
+  /* Open or focus a file in the tab strip */
+  const openMdFile = useCallback(
+    async (path: string): Promise<number> => {
+      try {
+        setError(null);
+        const text = await invoke<string>("read_md_file", { path });
+        const idx = openOrFocus({ path, content: text });
+        setActiveHeadingId("");
+        setSearchOpen(false);
+        const dir = path.replace(/[\\/][^\\/]+$/, "");
+        invoke("set_doc_dir", { dir }).catch(() => null);
+        return idx;
+      } catch (e) {
+        setError(String(e));
+        return -1;
+      }
+    },
+    [openOrFocus],
+  );
+
+  /* Compare current tab with another file (existing tab or picked from disk) */
+  const onCompare = useCallback(
+    async (srcIdx: number, mode: "diff" | "merge") => {
+      const others = files.map((_, j) => j).filter((j) => j !== srcIdx);
+      let targetIdx: number | null = null;
+
+      if (others.length > 0) {
+        // Default: pair with the most-recently-active other tab
+        targetIdx = others.includes(activeIndex) ? activeIndex : others[others.length - 1];
+      } else {
+        // No other tabs — open a file picker
+        const picked = await openDialog({
+          multiple: false,
+          filters: [
+            {
+              name: "Markdown",
+              extensions: ["md", "mdx", "markdown", "mdown", "txt", "mkd", "mkdn", "mdwn", "mdtxt", "mdtext", "rmd"],
+            },
+          ],
+        }).catch(() => null);
+        if (!picked) return;
+        targetIdx = await openMdFile(picked as string);
+        if (targetIdx < 0) return;
+      }
+      if (targetIdx == null) return;
+      if (mode === "diff") startDiff(srcIdx, targetIdx);
+      else startMerge(srcIdx, targetIdx);
+    },
+    [files, activeIndex, openMdFile, startDiff, startMerge],
+  );
 
   const openFilePicker = useCallback(async () => {
     const path = await openDialog({
@@ -698,32 +744,57 @@ export function HomePage() {
           onJump={jumpToHeading}
         />
 
-        <main ref={mainRef} className="flex-1 overflow-y-auto relative">
-          <SearchBar
-            open={searchOpen}
-            onClose={() => setSearchOpen(false)}
-            scrollContainer={mainRef}
-          />
-          {error && (
-            <div className="mx-5 mt-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-sm text-red-600 dark:text-red-400 select-text">
-              {error}
-            </div>
-          )}
-
-          {!body && !error && <EmptyState onOpenFile={openFilePicker} />}
-
-          {body && (
-            <MarkdownContent
-              key={filePath}
-              body={body}
-              dark={dark}
-              filePath={filePath}
-              onActiveId={setActiveHeadingId}
-              contentWidth={contentWidth}
+        <div className="flex-1 flex flex-col min-w-0">
+          <Tabs onCompare={onCompare} />
+          <main ref={mainRef} className="flex-1 overflow-y-auto relative">
+            <SearchBar
+              open={searchOpen && viewMode === "read"}
+              onClose={() => setSearchOpen(false)}
+              scrollContainer={mainRef}
             />
-          )}
-        </main>
+            {error && (
+              <div className="mx-5 mt-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-sm text-red-600 dark:text-red-400 select-text">
+                {error}
+              </div>
+            )}
+
+            {viewMode === "diff" && pair && (
+              <ComparisonPlaceholder mode="diff" />
+            )}
+            {viewMode === "merge" && pair && (
+              <ComparisonPlaceholder mode="merge" />
+            )}
+
+              {viewMode === "read" && !body && !error && (
+              <EmptyState onOpenFile={openFilePicker} />
+            )}
+
+            {viewMode === "read" && body && (
+              <MarkdownContent
+                key={filePath}
+                body={body}
+                dark={dark}
+                filePath={filePath}
+                onActiveId={setActiveHeadingId}
+                contentWidth={contentWidth}
+              />
+            )}
+          </main>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── ComparisonPlaceholder ─────────────────────────────────────────
+   Diff and merge views land here in the next phases.                */
+
+function ComparisonPlaceholder({ mode }: { mode: "diff" | "merge" }) {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <p className="text-stone-400 dark:text-stone-600 text-sm">
+        {mode === "diff" ? "Diff" : "Merge"} view coming up next.
+      </p>
     </div>
   );
 }
