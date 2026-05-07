@@ -19,9 +19,7 @@ tauri-plugin-store = "2"
 percent-encoding = "2"
 walkdir = "2"
 ignore = "0.4"
-grep-searcher = "0.1"
-grep-regex = "0.1"
-grep-matcher = "0.1"
+regex = "1"
 
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

@@ -1,11 +1,15 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod fs_ops;
+
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use tauri::Emitter;
+
+use fs_ops::{list_markdown_dir, save_md_file, search_markdown};
 
 struct DocDir(Mutex<Option<PathBuf>>);
 struct PendingOpen(Mutex<Option<String>>);
@@ -80,7 +84,14 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![set_doc_dir, read_md_file, take_pending_open])
+        .invoke_handler(tauri::generate_handler![
+            set_doc_dir,
+            read_md_file,
+            take_pending_open,
+            list_markdown_dir,
+            search_markdown,
+            save_md_file,
+        ])
         .register_uri_scheme_protocol("md-asset", |ctx, request| {
             let app = ctx.app_handle();
             let doc_dir = {
