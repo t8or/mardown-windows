@@ -7,19 +7,26 @@ import {
   ArrowSquareOut,
   ArrowUp,
   ArrowDown,
-  Clock,
+  ArrowsHorizontal,
+  ArrowsInLineHorizontal,
   Copy,
   FileText,
   FolderOpen,
-  Hash,
+  Gear,
   MagnifyingGlass,
   Moon,
   Printer,
   SidebarSimple,
   Sun,
-  TextT,
   X,
 } from "@phosphor-icons/react";
+import { useSettingsStore, type ContentWidth } from "@/features/settings/store";
+import { Sidebar } from "@/features/sidebar/Sidebar";
+import type { Frontmatter, Heading, Stats } from "@/features/sidebar/OutlinePanel";
+import { Tabs } from "@/features/reader/Tabs";
+import { useReaderStore } from "@/features/reader/store";
+import { DiffView } from "@/features/reader/DiffView";
+import { MergeView } from "@/features/reader/MergeView";
 import {
   memo,
   useCallback,
@@ -38,24 +45,6 @@ import rehypeSlug from "rehype-slug";
 import mermaid from "mermaid";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github-dark-dimmed.css";
-
-/* ─── types ───────────────────────────────────────────────────────── */
-
-interface Heading {
-  level: number;
-  text: string;
-  id: string;
-}
-
-interface Stats {
-  words: number;
-  chars: number;
-  readingTime: number;
-  headings: number;
-  lines: number;
-}
-
-type Frontmatter = Record<string, string>;
 
 /* ─── utilities ───────────────────────────────────────────────────── */
 
@@ -165,206 +154,7 @@ const MermaidBlock = memo(function MermaidBlock({
   );
 });
 
-/* ─── StatRow ─────────────────────────────────────────────────────── */
-
-function StatRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="text-stone-400 dark:text-stone-600 w-3.5 shrink-0 flex items-center justify-center">
-        {icon}
-      </span>
-      <span className="text-xs text-stone-500 dark:text-stone-500 min-w-0">{label}</span>
-      <span className="ml-auto text-xs font-mono tabular-nums text-stone-700 dark:text-stone-300 shrink-0">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-/* ─── Sidebar ─────────────────────────────────────────────────────── */
-
-function Sidebar({
-  filePath,
-  headings,
-  stats,
-  frontmatter,
-  activeId,
-  onOpenFile,
-  onJump,
-  visible,
-}: {
-  filePath: string | null;
-  headings: Heading[];
-  stats: Stats | null;
-  frontmatter: Frontmatter;
-  activeId: string;
-  onOpenFile: () => void;
-  onJump: (id: string) => void;
-  visible: boolean;
-}) {
-  const fileName = filePath ? (filePath.split(/[\\/]/).pop() ?? null) : null;
-  const dir = filePath
-    ? (() => {
-        const parts = filePath.replace(/\\/g, "/").split("/").slice(0, -1);
-        if (parts.length === 0) return null;
-        return parts.length <= 2 ? parts.join("/") : `…/${parts.slice(-2).join("/")}`;
-      })()
-    : null;
-
-  const fmEntries = Object.entries(frontmatter).slice(0, 8);
-
-  return (
-    <aside
-      className="shrink-0 overflow-hidden border-r border-black/[0.06] dark:border-white/[0.06]"
-      style={{
-        width: visible ? 224 : 0,
-        minWidth: visible ? 224 : 0,
-        opacity: visible ? 1 : 0,
-        transition:
-          "width 300ms cubic-bezier(0.16,1,0.3,1), min-width 300ms cubic-bezier(0.16,1,0.3,1), opacity 220ms ease",
-      }}
-    >
-      <div className="w-56 h-full flex flex-col overflow-hidden">
-        {/* Open file */}
-        <div className="px-3 pt-3.5 pb-2 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenFile}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/[0.04] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]"
-            style={{ transition: "all 180ms cubic-bezier(0.16,1,0.3,1)" }}
-          >
-            <FolderOpen size={14} />
-            <span>Open file</span>
-            <kbd className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 bg-stone-100 dark:bg-white/[0.06] border border-stone-200 dark:border-white/10 px-1.5 py-px rounded">
-              ⌘O
-            </kbd>
-          </button>
-        </div>
-
-        <div className="h-px bg-stone-100 dark:bg-white/[0.05] mx-4 shrink-0" />
-
-        {/* Outline — scrolls independently */}
-        <div className="flex-1 overflow-y-auto min-h-0 py-3">
-          {headings.length > 0 ? (
-            <div className="px-2">
-              <p className="px-2 mb-1.5 text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
-                Outline
-              </p>
-              {headings.map((h, i) => {
-                const isActive = h.id === activeId;
-                return (
-                  <button
-                    // biome-ignore lint/suspicious/noArrayIndexKey: stable
-                    key={i}
-                    type="button"
-                    onClick={() => onJump(h.id)}
-                    title={h.text}
-                    className={`w-full text-left text-[12px] px-2 py-[3px] rounded-md truncate transition-colors duration-100 ${
-                      isActive
-                        ? "text-stone-800 dark:text-stone-100 bg-stone-100 dark:bg-white/[0.08] font-medium"
-                        : "text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.03]"
-                    }`}
-                    style={{
-                      paddingLeft: `${8 + Math.min(h.level - 1, 3) * 10}px`,
-                    }}
-                  >
-                    {h.text}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            !filePath && (
-              <p className="px-5 text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
-                Open a file to see its outline.
-                <br />
-                <span className="font-mono text-[10px] mt-2 block">
-                  .md · .mdx · .markdown
-                  <br />
-                  .txt · .rmd · .mkd
-                </span>
-              </p>
-            )
-          )}
-        </div>
-
-        <div className="h-px bg-stone-100 dark:bg-white/[0.05] mx-4 shrink-0" />
-
-        {/* Document info + stats */}
-        <div className="px-5 py-4 space-y-4 shrink-0">
-          {filePath && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
-                Document
-              </p>
-              <div>
-                <p
-                  className="text-[12px] font-medium text-stone-800 dark:text-stone-200 truncate leading-snug"
-                  title={fileName ?? ""}
-                >
-                  {fileName}
-                </p>
-                {dir && (
-                  <p
-                    className="text-[11px] text-stone-400 dark:text-stone-600 truncate leading-snug mt-0.5"
-                    title={dir}
-                  >
-                    {dir}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {fmEntries.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
-                Properties
-              </p>
-              <div className="space-y-1">
-                {fmEntries.map(([k, v]) => (
-                  <div key={k} className="flex gap-2 min-w-0">
-                    <span className="text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
-                      {k}
-                    </span>
-                    <span
-                      className="text-[11px] text-stone-600 dark:text-stone-400 truncate"
-                      title={v}
-                    >
-                      {v}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {stats && (
-            <div className="space-y-2">
-              <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
-                Statistics
-              </p>
-              <div className="space-y-2">
-                <StatRow icon={<TextT size={12} />} label="Words" value={stats.words.toLocaleString()} />
-                <StatRow icon={<Clock size={12} />} label="Read time" value={`${stats.readingTime} min`} />
-                <StatRow icon={<Hash size={12} />} label="Headings" value={String(stats.headings)} />
-                <StatRow icon={<FileText size={12} />} label="Lines" value={stats.lines.toLocaleString()} />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
-  );
-}
+/* ─── Sidebar (legacy inline component removed; see features/sidebar/Sidebar.tsx) ─ */
 
 /* ─── EmptyState ──────────────────────────────────────────────────── */
 
@@ -561,11 +351,13 @@ function MarkdownContent({
   dark,
   filePath,
   onActiveId,
+  contentWidth,
 }: {
   body: string;
   dark: boolean;
   filePath: string | null;
   onActiveId: (id: string) => void;
+  contentWidth: ContentWidth;
 }) {
   const articleRef = useRef<HTMLDivElement>(null);
 
@@ -617,10 +409,13 @@ function MarkdownContent({
     [dark, filePath],
   );
 
+  const widthClass =
+    contentWidth === "full" ? "max-w-none px-16" : "max-w-[72ch] px-10";
+
   return (
     <div
       ref={articleRef}
-      className="max-w-[72ch] mx-auto px-10 py-12 content-fade-in"
+      className={`mx-auto py-12 content-fade-in ${widthClass}`}
     >
       <article
         className="
@@ -658,16 +453,41 @@ function MarkdownContent({
 /* ─── HomePage ────────────────────────────────────────────────────── */
 
 export function HomePage() {
-  const [rawContent, setRawContent] = useState<string | null>(null);
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [dark, setDark] = useState(
+  const files = useReaderStore((s) => s.files);
+  const activeIndex = useReaderStore((s) => s.activeIndex);
+  const viewMode = useReaderStore((s) => s.viewMode);
+  const pair = useReaderStore((s) => s.pair);
+  const openOrFocus = useReaderStore((s) => s.openOrFocus);
+  const startDiff = useReaderStore((s) => s.startDiff);
+  const startMerge = useReaderStore((s) => s.startMerge);
+
+  const activeFile = activeIndex >= 0 ? files[activeIndex] : null;
+  const filePath = activeFile?.path ?? null;
+  const rawContent = activeFile?.content ?? null;
+
+  const [systemDark, setSystemDark] = useState(
     () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const darkOverride = useSettingsStore((s) => s.dark);
+  const setDarkOverride = useSettingsStore((s) => s.setDark);
+  const sidebarOpen = useSettingsStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useSettingsStore((s) => s.setSidebarOpen);
+  const contentWidth = useSettingsStore((s) => s.contentWidth);
+  const setContentWidth = useSettingsStore((s) => s.setContentWidth);
+  const dark = darkOverride ?? systemDark;
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeHeadingId, setActiveHeadingId] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+
+  /* Track system dark-mode changes when no explicit override */
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   /* Parse document: strip frontmatter, compute stats + headings */
   const { body, frontmatter, stats, headings } = useMemo(() => {
@@ -685,22 +505,56 @@ export function HomePage() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  /* Open file via dialog */
-  const openMdFile = useCallback(async (path: string) => {
-    try {
-      setError(null);
-      const text = await invoke<string>("read_md_file", { path });
-      setFilePath(path);
-      setRawContent(text);
-      setActiveHeadingId("");
-      setSearchOpen(false);
-      // Tell Rust the document directory so md-asset:// can resolve relative images
-      const dir = path.replace(/[\\/][^\\/]+$/, "");
-      invoke("set_doc_dir", { dir }).catch(() => null);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
+  /* Open or focus a file in the tab strip */
+  const openMdFile = useCallback(
+    async (path: string): Promise<number> => {
+      try {
+        setError(null);
+        const text = await invoke<string>("read_md_file", { path });
+        const idx = openOrFocus({ path, content: text });
+        setActiveHeadingId("");
+        setSearchOpen(false);
+        const dir = path.replace(/[\\/][^\\/]+$/, "");
+        invoke("set_doc_dir", { dir }).catch(() => null);
+        return idx;
+      } catch (e) {
+        setError(String(e));
+        return -1;
+      }
+    },
+    [openOrFocus],
+  );
+
+  /* Compare current tab with another file (existing tab or picked from disk) */
+  const onCompare = useCallback(
+    async (srcIdx: number, mode: "diff" | "merge") => {
+      const others = files.map((_, j) => j).filter((j) => j !== srcIdx);
+      let targetIdx: number | null = null;
+
+      if (others.length > 0) {
+        // Default: pair with the most-recently-active other tab
+        targetIdx = others.includes(activeIndex) ? activeIndex : others[others.length - 1];
+      } else {
+        // No other tabs — open a file picker
+        const picked = await openDialog({
+          multiple: false,
+          filters: [
+            {
+              name: "Markdown",
+              extensions: ["md", "mdx", "markdown", "mdown", "txt", "mkd", "mkdn", "mdwn", "mdtxt", "mdtext", "rmd"],
+            },
+          ],
+        }).catch(() => null);
+        if (!picked) return;
+        targetIdx = await openMdFile(picked as string);
+        if (targetIdx < 0) return;
+      }
+      if (targetIdx == null) return;
+      if (mode === "diff") startDiff(srcIdx, targetIdx);
+      else startMerge(srcIdx, targetIdx);
+    },
+    [files, activeIndex, openMdFile, startDiff, startMerge],
+  );
 
   const openFilePicker = useCallback(async () => {
     const path = await openDialog({
@@ -790,7 +644,7 @@ export function HomePage() {
       >
         <button
           type="button"
-          onClick={() => setSidebarOpen((o) => !o)}
+          onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-1.5 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/[0.06] transition-colors duration-150"
           title="Toggle sidebar"
         >
@@ -852,52 +706,193 @@ export function HomePage() {
 
           <TopbarBtn
             title={dark ? "Switch to light" : "Switch to dark"}
-            onClick={() => setDark((d) => !d)}
+            onClick={() => setDarkOverride(!dark)}
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </TopbarBtn>
+
+          <div className="relative">
+            <TopbarBtn
+              title="Settings"
+              onClick={() => setSettingsOpen((v) => !v)}
+              active={settingsOpen}
+            >
+              <Gear size={15} />
+            </TopbarBtn>
+            {settingsOpen && (
+              <SettingsMenu
+                contentWidth={contentWidth}
+                onContentWidth={setContentWidth}
+                darkOverride={darkOverride}
+                onDarkOverride={setDarkOverride}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
+          </div>
         </div>
       </header>
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
         <Sidebar
+          visible={sidebarOpen}
           filePath={filePath}
           headings={headings}
           stats={stats}
           frontmatter={frontmatter}
           activeId={activeHeadingId}
           onOpenFile={openFilePicker}
+          onOpenPath={(p) => openMdFile(p)}
           onJump={jumpToHeading}
-          visible={sidebarOpen}
         />
 
-        <main ref={mainRef} className="flex-1 overflow-y-auto relative">
-          <SearchBar
-            open={searchOpen}
-            onClose={() => setSearchOpen(false)}
-            scrollContainer={mainRef}
-          />
-          {error && (
-            <div className="mx-5 mt-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-sm text-red-600 dark:text-red-400 select-text">
-              {error}
-            </div>
-          )}
-
-          {!body && !error && <EmptyState onOpenFile={openFilePicker} />}
-
-          {body && (
-            <MarkdownContent
-              key={filePath}
-              body={body}
-              dark={dark}
-              filePath={filePath}
-              onActiveId={setActiveHeadingId}
+        <div className="flex-1 flex flex-col min-w-0">
+          <Tabs onCompare={onCompare} />
+          <main ref={mainRef} className="flex-1 overflow-y-auto relative">
+            <SearchBar
+              open={searchOpen && viewMode === "read"}
+              onClose={() => setSearchOpen(false)}
+              scrollContainer={mainRef}
             />
-          )}
-        </main>
+            {error && (
+              <div className="mx-5 mt-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-sm text-red-600 dark:text-red-400 select-text">
+                {error}
+              </div>
+            )}
+
+            {viewMode === "diff" && pair && <DiffView />}
+            {viewMode === "merge" && pair && <MergeView />}
+
+              {viewMode === "read" && !body && !error && (
+              <EmptyState onOpenFile={openFilePicker} />
+            )}
+
+            {viewMode === "read" && body && (
+              <MarkdownContent
+                key={filePath}
+                body={body}
+                dark={dark}
+                filePath={filePath}
+                onActiveId={setActiveHeadingId}
+                contentWidth={contentWidth}
+              />
+            )}
+          </main>
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ─── SettingsMenu ────────────────────────────────────────────────── */
+
+function SettingsMenu({
+  contentWidth,
+  onContentWidth,
+  darkOverride,
+  onDarkOverride,
+  onClose,
+}: {
+  contentWidth: ContentWidth;
+  onContentWidth: (w: ContentWidth) => void;
+  darkOverride: boolean | null;
+  onDarkOverride: (d: boolean | null) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    setTimeout(() => window.addEventListener("mousedown", handler), 0);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousedown", handler);
+      window.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl bg-white/97 dark:bg-[#252525]/97 border border-black/[0.08] dark:border-white/[0.10] shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-2"
+      style={{ backdropFilter: "blur(12px)" }}
+    >
+      <div className="px-2 pt-1 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
+          Content width
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-1 px-1 pb-2">
+        <SettingsToggle
+          icon={<ArrowsInLineHorizontal size={13} />}
+          label="Comfortable"
+          active={contentWidth === "comfortable"}
+          onClick={() => onContentWidth("comfortable")}
+        />
+        <SettingsToggle
+          icon={<ArrowsHorizontal size={13} />}
+          label="Full width"
+          active={contentWidth === "full"}
+          onClick={() => onContentWidth("full")}
+        />
+      </div>
+      <div className="h-px bg-stone-100 dark:bg-white/[0.05] my-1" />
+      <div className="px-2 pt-1 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-stone-400 dark:text-stone-600">
+          Theme
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+        <SettingsToggle
+          label="System"
+          active={darkOverride === null}
+          onClick={() => onDarkOverride(null)}
+        />
+        <SettingsToggle
+          icon={<Sun size={13} />}
+          label="Light"
+          active={darkOverride === false}
+          onClick={() => onDarkOverride(false)}
+        />
+        <SettingsToggle
+          icon={<Moon size={13} />}
+          label="Dark"
+          active={darkOverride === true}
+          onClick={() => onDarkOverride(true)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SettingsToggle({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon?: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[12px] transition-colors duration-100 ${
+        active
+          ? "bg-stone-100 dark:bg-white/[0.08] text-stone-800 dark:text-stone-100 font-medium"
+          : "text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.04]"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

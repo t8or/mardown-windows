@@ -19,8 +19,10 @@
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.3",
+    "@tauri-apps/plugin-store": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "diff": "^9.0.0",
     "katex": "^0.16.45",
     "lucide-react": "^1.7.0",
     "mermaid": "^11.14.0",
@@ -36,12 +38,14 @@
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^4.1.13"
+    "zod": "^4.1.13",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.13",
     "@tailwindcss/typography": "^0.5",
     "@tauri-apps/cli": "^2.9.5",
+    "@types/diff": "^7.0.2",
     "@types/node": "^25.4.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
