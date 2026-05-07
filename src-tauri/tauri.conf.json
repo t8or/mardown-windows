@@ -23,13 +23,7 @@
   "productName": "Markdown Reader",
   "version": "0.1.0",
   "identifier": "com.markdownreader.app",
-  "plugins": {
-    "process": {
-      "active": true
-    },
-    "dialog": {},
-    "fs": {}
-  },
+  "plugins": {},
   "app": {
     "security": {
       "csp": null
