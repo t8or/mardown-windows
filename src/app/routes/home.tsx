@@ -26,6 +26,7 @@ import type { Frontmatter, Heading, Stats } from "@/features/sidebar/OutlinePane
 import { Tabs } from "@/features/reader/Tabs";
 import { useReaderStore } from "@/features/reader/store";
 import { DiffView } from "@/features/reader/DiffView";
+import { MergeView } from "@/features/reader/MergeView";
 import {
   memo,
   useCallback,
@@ -760,9 +761,7 @@ export function HomePage() {
             )}
 
             {viewMode === "diff" && pair && <DiffView />}
-            {viewMode === "merge" && pair && (
-              <ComparisonPlaceholder mode="merge" />
-            )}
+            {viewMode === "merge" && pair && <MergeView />}
 
               {viewMode === "read" && !body && !error && (
               <EmptyState onOpenFile={openFilePicker} />
@@ -781,19 +780,6 @@ export function HomePage() {
           </main>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ─── ComparisonPlaceholder ─────────────────────────────────────────
-   Diff and merge views land here in the next phases.                */
-
-function ComparisonPlaceholder({ mode }: { mode: "diff" | "merge" }) {
-  return (
-    <div className="h-full flex items-center justify-center">
-      <p className="text-stone-400 dark:text-stone-600 text-sm">
-        {mode === "diff" ? "Diff" : "Merge"} view coming up next.
-      </p>
     </div>
   );
 }

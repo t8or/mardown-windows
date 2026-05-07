@@ -142,6 +142,63 @@ export function toUnified(changes: Change[]): UnifiedRow[] {
   return rows;
 }
 
+export interface Hunk {
+  /** Inclusive start row index in the side-by-side rows. */
+  start: number;
+  /** Exclusive end row index. */
+  end: number;
+}
+
+export function findHunks(rows: SideBySideRow[]): Hunk[] {
+  const hunks: Hunk[] = [];
+  let start = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].kind !== "equal") {
+      if (start === -1) start = i;
+    } else if (start !== -1) {
+      hunks.push({ start, end: i });
+      start = -1;
+    }
+  }
+  if (start !== -1) hunks.push({ start, end: rows.length });
+  return hunks;
+}
+
+export type HunkChoice = "left" | "right" | "both" | "none";
+
+export function assembleMerged(
+  rows: SideBySideRow[],
+  hunks: Hunk[],
+  choices: Record<number, HunkChoice>,
+): string {
+  const out: string[] = [];
+  let cursor = 0;
+  for (let h = 0; h < hunks.length; h++) {
+    const hunk = hunks[h];
+    for (let i = cursor; i < hunk.start; i++) {
+      const r = rows[i];
+      if (r.left != null) out.push(r.left);
+    }
+    const choice = choices[h] ?? "left";
+    for (let i = hunk.start; i < hunk.end; i++) {
+      const r = rows[i];
+      if (choice === "left" && r.left != null) out.push(r.left);
+      else if (choice === "right" && r.right != null) out.push(r.right);
+      else if (choice === "both") {
+        if (r.left != null) out.push(r.left);
+        if (r.right != null && r.right !== r.left) out.push(r.right);
+      }
+      // 'none' → skip
+    }
+    cursor = hunk.end;
+  }
+  for (let i = cursor; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.left != null) out.push(r.left);
+  }
+  return out.join("\n");
+}
+
 export interface DiffSummary {
   added: number;
   removed: number;
