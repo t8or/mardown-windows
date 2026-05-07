@@ -25,6 +25,7 @@ import { Sidebar } from "@/features/sidebar/Sidebar";
 import type { Frontmatter, Heading, Stats } from "@/features/sidebar/OutlinePanel";
 import { Tabs } from "@/features/reader/Tabs";
 import { useReaderStore } from "@/features/reader/store";
+import { DiffView } from "@/features/reader/DiffView";
 import {
   memo,
   useCallback,
@@ -758,9 +759,7 @@ export function HomePage() {
               </div>
             )}
 
-            {viewMode === "diff" && pair && (
-              <ComparisonPlaceholder mode="diff" />
-            )}
+            {viewMode === "diff" && pair && <DiffView />}
             {viewMode === "merge" && pair && (
               <ComparisonPlaceholder mode="merge" />
             )}
